@@ -67,7 +67,8 @@ class InvertedIndex:
         Returns:
             dict of {doc_id: [positions]} or empty dict
         """
-        return self.index.get(term, {})
+        raw = self.index.get(term, {})
+        return {int(k): v for k, v in raw.items()}
     
     def get_document_frequency(self, term):
         """
