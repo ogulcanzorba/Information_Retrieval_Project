@@ -156,9 +156,9 @@ def api_search():
     # Build response
     result_docs = []
     for doc_id, score in results:
-        doc = documents.get(doc_id, {})
+        doc = documents.get(int(doc_id), {})
         result_docs.append({
-            'id': doc_id,
+            'id': int(doc_id),
             'title': doc.get('title', ''),
             'author': doc.get('author', ''),
             'abstract': doc.get('abstract', '')[:500],
@@ -202,9 +202,9 @@ def api_compare():
 
         result_docs = []
         for doc_id, score in results:
-            doc = documents.get(doc_id, {})
+            doc = documents.get(int(doc_id), {})
             result_docs.append({
-                'id': doc_id,
+                'id': int(doc_id),
                 'title': doc.get('title', ''),
                 'author': doc.get('author', ''),
                 'abstract': doc.get('abstract', '')[:300],
