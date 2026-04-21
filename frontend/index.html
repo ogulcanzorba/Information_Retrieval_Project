@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CISI Information Retrieval System — Compare Boolean, TF-IDF, BM25, and Hybrid search algorithms with real-time evaluation metrics.">
+    <title>CISI IR System — Information Retrieval Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <div class="nav-logo">
+                <svg viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" stroke="url(#navGrad)" stroke-width="2.5"/>
+                    <path d="M10 16h12M16 10v12" stroke="url(#navGrad)" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="16" cy="16" r="4" fill="url(#navGrad)" opacity="0.4"/>
+                    <defs><linearGradient id="navGrad" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs>
+                </svg>
+            </div>
+            <span class="nav-title">CISI<span class="accent">Search</span></span>
+        </div>
+        <div class="nav-links">
+            <a href="#search-section" class="nav-link active" data-section="search">Search</a>
+            <a href="#compare-section" class="nav-link" data-section="compare">Compare</a>
+            <a href="#evaluate-section" class="nav-link" data-section="evaluate">Evaluate</a>
+            <a href="#stats-section" class="nav-link" data-section="stats">Statistics</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- HERO -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="hero" id="hero">
+            <div class="hero-badge">CSE 422 — Information Retrieval Project</div>
+            <h1 class="hero-title">
+                <span class="hero-line">Explore</span>
+                <span class="hero-line gradient-text">Information Retrieval</span>
+                <span class="hero-line">Algorithms</span>
+            </h1>
+            <p class="hero-desc">
+                A comprehensive search engine built on the CISI collection — 1460 documents, 
+                112 queries, and 4 distinct retrieval algorithms compared side by side.
+            </p>
+            <div class="hero-chips">
+                <span class="chip chip-blue">Boolean</span>
+                <span class="chip chip-purple">TF-IDF</span>
+                <span class="chip chip-pink">BM25</span>
+                <span class="chip chip-orange">Hybrid</span>
+            </div>
+            <a href="#search-section" class="hero-cta">
+                <span>Start Searching</span>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 3v14m0 0l5-5m-5 5l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+        </section>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- SEARCH SECTION -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="section" id="search-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Search Engine
+                </h2>
+                <p class="section-subtitle">Choose an algorithm, type your query, and explore the results.</p>
+            </div>
+
+            <!-- Algorithm Tabs -->
+            <div class="algo-tabs" id="algo-tabs">
+                <button class="algo-tab active" data-algo="boolean" id="tab-boolean">
+                    <span class="tab-icon">⟨⟩</span>
+                    <span class="tab-label">Boolean</span>
+                </button>
+                <button class="algo-tab" data-algo="tfidf" id="tab-tfidf">
+                    <span class="tab-icon">∑</span>
+                    <span class="tab-label">TF-IDF</span>
+                </button>
+                <button class="algo-tab" data-algo="bm25" id="tab-bm25">
+                    <span class="tab-icon">λ</span>
+                    <span class="tab-label">BM25</span>
+                </button>
+                <button class="algo-tab" data-algo="hybrid" id="tab-hybrid">
+                    <span class="tab-icon">⊕</span>
+                    <span class="tab-label">Hybrid</span>
+                </button>
+            </div>
+
+            <!-- Algorithm Info Card -->
+            <div class="algo-info-card glass-card" id="algo-info-card">
+                <div class="algo-info-name" id="algo-info-name">Boolean Retrieval</div>
+                <div class="algo-info-desc" id="algo-info-desc">Set-based retrieval using AND, OR, NOT operators. No ranking — all matched documents are equally relevant.</div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="search-bar-container">
+                <div class="search-bar glass-card" id="search-bar">
+                    <svg class="search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input type="text" id="search-input" placeholder='Try: "information retrieval systems"' autocomplete="off">
+                    <button class="search-btn" id="search-btn">
+                        <span>Search</span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+
+                <!-- Boolean operators -->
+                <div class="bool-ops" id="bool-ops">
+                    <button class="bool-btn" data-op="AND">AND</button>
+                    <button class="bool-btn" data-op="OR">OR</button>
+                    <button class="bool-btn" data-op="NOT">NOT</button>
+                    <button class="bool-btn" data-op="(">(</button>
+                    <button class="bool-btn" data-op=")">)</button>
+                </div>
+
+                <!-- Hybrid slider -->
+                <div class="hybrid-controls" id="hybrid-controls" style="display:none">
+                    <div class="slider-group">
+                        <label>Alpha (BM25 Weight): <span id="alpha-value">0.60</span></label>
+                        <input type="range" id="alpha-slider" min="0" max="1" step="0.05" value="0.60">
+                        <div class="slider-labels">
+                            <span>TF-IDF Only</span>
+                            <span>BM25 Only</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BM25 slider -->
+                <div class="bm25-controls" id="bm25-controls" style="display:none">
+                    <div class="slider-row">
+                        <div class="slider-group">
+                            <label>k1 (Saturation): <span id="k1-value">1.50</span></label>
+                            <input type="range" id="k1-slider" min="0" max="3" step="0.1" value="1.5">
+                        </div>
+                        <div class="slider-group">
+                            <label>b (Length Norm): <span id="b-value">0.75</span></label>
+                            <input type="range" id="b-slider" min="0" max="1" step="0.05" value="0.75">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top-K selector -->
+                <div class="topk-row">
+                    <label>Results:</label>
+                    <select id="topk-select">
+                        <option value="5">Top 5</option>
+                        <option value="10" selected>Top 10</option>
+                        <option value="20">Top 20</option>
+                        <option value="50">Top 50</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div class="results-area" id="results-area" style="display:none">
+                <div class="results-header">
+                    <span class="results-count" id="results-count"></span>
+                    <span class="results-time" id="results-time"></span>
+                </div>
+                <div class="results-list" id="results-list"></div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="empty-state">
+                <div class="empty-icon">
+                    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                        <circle cx="28" cy="28" r="18" stroke="currentColor" stroke-width="3" opacity="0.3"/>
+                        <path d="M42 42l14 14" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.3"/>
+                    </svg>
+                </div>
+                <p>Enter a query above to search the CISI collection</p>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- COMPARE SECTION -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="section" id="compare-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>
+                    Algorithm Comparison
+                </h2>
+                <p class="section-subtitle">Compare all 4 algorithms side-by-side for the same query.</p>
+            </div>
+
+            <div class="compare-search glass-card">
+                <input type="text" id="compare-input" placeholder='Enter a query to compare all algorithms...' autocomplete="off">
+                <button class="search-btn" id="compare-btn">Compare All</button>
+            </div>
+
+            <!-- Predefined queries -->
+            <div class="preset-queries" id="preset-queries">
+                <span class="preset-label">Try:</span>
+                <button class="preset-btn" data-query="information retrieval systems">information retrieval systems</button>
+                <button class="preset-btn" data-query="automatic indexing methods">automatic indexing methods</button>
+                <button class="preset-btn" data-query="library automation">library automation</button>
+                <button class="preset-btn" data-query="document clustering techniques">document clustering techniques</button>
+            </div>
+
+            <div class="compare-grid" id="compare-grid" style="display:none"></div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- EVALUATE SECTION -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="section" id="evaluate-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3v18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 17l4-8 4 4 5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Performance Evaluation
+                </h2>
+                <p class="section-subtitle">Evaluate retrieval quality across all 112 queries using standard IR metrics.</p>
+            </div>
+
+            <button class="eval-btn glass-card" id="run-eval-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>
+                <span>Run Full Evaluation</span>
+            </button>
+
+            <div class="eval-loading" id="eval-loading" style="display:none">
+                <div class="spinner"></div>
+                <span>Evaluating models on 112 queries... This may take a moment.</span>
+            </div>
+
+            <div class="eval-results" id="eval-results" style="display:none">
+                <!-- MAP Cards -->
+                <div class="metric-cards" id="metric-cards"></div>
+
+                <!-- Charts Row -->
+                <div class="charts-row">
+                    <div class="chart-card glass-card">
+                        <h3>Precision@K Comparison</h3>
+                        <canvas id="precision-chart"></canvas>
+                    </div>
+                    <div class="chart-card glass-card">
+                        <h3>Recall@K Comparison</h3>
+                        <canvas id="recall-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <div class="chart-card glass-card">
+                        <h3>F1@K Comparison</h3>
+                        <canvas id="f1-chart"></canvas>
+                    </div>
+                    <div class="chart-card glass-card">
+                        <h3>Overall Performance Radar</h3>
+                        <canvas id="radar-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- STATS SECTION -->
+        <!-- ═══════════════════════════════════════════ -->
+        <section class="section" id="stats-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M4 9h16" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="10" cy="7" r="1" fill="currentColor"/></svg>
+                    Collection Statistics
+                </h2>
+                <p class="section-subtitle">An overview of the CISI dataset and inverted index properties.</p>
+            </div>
+
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card glass-card loading-pulse">
+                    <div class="stat-value" id="stat-docs">—</div>
+                    <div class="stat-label">Documents</div>
+                </div>
+                <div class="stat-card glass-card loading-pulse">
+                    <div class="stat-value" id="stat-queries">—</div>
+                    <div class="stat-label">Queries</div>
+                </div>
+                <div class="stat-card glass-card loading-pulse">
+                    <div class="stat-value" id="stat-vocab">—</div>
+                    <div class="stat-label">Vocabulary Size</div>
+                </div>
+                <div class="stat-card glass-card loading-pulse">
+                    <div class="stat-value" id="stat-tokens">—</div>
+                    <div class="stat-label">Total Tokens</div>
+                </div>
+                <div class="stat-card glass-card loading-pulse">
+                    <div class="stat-value" id="stat-avgdl">—</div>
+                    <div class="stat-label">Avg Doc Length</div>
+                </div>
+                <div class="stat-card glass-card loading-pulse">
+                    <div class="stat-value" id="stat-relpairs">—</div>
+                    <div class="stat-label">Relevance Pairs</div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-card glass-card">
+                    <h3>Top 20 Terms by Document Frequency</h3>
+                    <canvas id="top-terms-chart"></canvas>
+                </div>
+                <div class="chart-card glass-card">
+                    <h3>Document Length Distribution</h3>
+                    <canvas id="doc-length-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <span>CSE 422 — Information Retrieval Project</span>
+            <span class="footer-sep">|</span>
+            <span>CISI Collection • 1460 Documents • 4 Algorithms</span>
+        </div>
+    </footer>
+
+    <script src="scripts/app.js"></script>
+</body>
+</html>
