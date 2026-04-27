@@ -52,49 +52,34 @@ class HybridModel:
             for doc_id, score in results
         }
     
-    def search(self, query, top_k=10, alpha=None):
+    def search(self, query, top_k=10, alpha=None, k1=None, b=None):
         """
-        Search using hybrid BM25 + TF-IDF scoring.
-        
-        Args:
-            query: Raw query string
-            top_k: Number of top results to return
-            alpha: Optional override for the alpha parameter
-        
-        Returns:
-            List of (doc_id, score) tuples sorted by descending score
+        Search using hybrid BM25 + TF-IDF scoring. alpha/k1/b can be overridden
+        per call without mutating the model's defaults.
         """
-        a = alpha if alpha is not None else self.alpha
-        
-        # Get results from both models (get more than top_k to have overlap)
+        a = self.alpha if alpha is None else max(0.0, min(1.0, alpha))
+
         fetch_k = min(top_k * 5, 200)
-        bm25_results = self.bm25.search(query, top_k=fetch_k)
+        bm25_results = self.bm25.search(query, top_k=fetch_k, k1=k1, b=b)
         tfidf_results = self.tfidf.search(query, top_k=fetch_k)
-        
+
         if not bm25_results and not tfidf_results:
             return []
-        
-        # Normalize scores
+
         bm25_normalized = self._normalize_scores(bm25_results)
         tfidf_normalized = self._normalize_scores(tfidf_results)
-        
-        # Combine scores from both models
+
         all_doc_ids = set(bm25_normalized.keys()) | set(tfidf_normalized.keys())
-        
+
         combined_scores = {}
         for doc_id in all_doc_ids:
             bm25_score = bm25_normalized.get(doc_id, 0.0)
             tfidf_score = tfidf_normalized.get(doc_id, 0.0)
-            
+
             combined_scores[doc_id] = a * bm25_score + (1 - a) * tfidf_score
-        
-        # Sort by combined score descending
+
         ranked = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)
         return ranked[:top_k]
-    
-    def set_alpha(self, alpha):
-        """Update the alpha parameter."""
-        self.alpha = max(0.0, min(1.0, alpha))
     
     def get_name(self):
         return "Hybrid (BM25 + TF-IDF)"

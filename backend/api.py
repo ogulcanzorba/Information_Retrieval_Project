@@ -10,7 +10,7 @@ import json
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 
 from backend.parser import load_cisi_dataset
@@ -62,19 +62,24 @@ def initialize():
     documents, queries, relevance = load_cisi_dataset(data_dir)
     print(f"  Dataset loaded in {time.time() - t0:.2f}s")
 
-    # 2) Build or load inverted index
+    # 2) Build or load inverted index. Reject stale caches whose preprocessor
+    #    config no longer matches the running code.
     inv_index = InvertedIndex()
+    cache_loaded = False
     if os.path.exists(index_path):
         t0 = time.time()
-        inv_index.load(index_path)
-        # Rebuild doc_tokens (not serialized)
-        from backend.preprocessor import preprocess, get_document_text
-        for doc_id, doc in documents.items():
-            text = get_document_text(doc)
-            inv_index.doc_tokens[doc_id] = preprocess(text)
-        print(f"  Index loaded from cache in {time.time() - t0:.2f}s")
-    else:
+        if inv_index.load(index_path):
+            for doc_id, doc in documents.items():
+                text = get_document_text(doc)
+                inv_index.doc_tokens[doc_id] = preprocess(text)
+            print(f"  Index loaded from cache in {time.time() - t0:.2f}s")
+            cache_loaded = True
+        else:
+            print(f"  Cache stale; rebuilding...")
+
+    if not cache_loaded:
         t0 = time.time()
+        inv_index = InvertedIndex()
         inv_index.build(documents)
         inv_index.save(index_path)
         print(f"  Index built & cached in {time.time() - t0:.2f}s")
@@ -97,6 +102,35 @@ def initialize():
 
 
 # ─────────────────────────────────────────────
+# Input validation helpers
+# ─────────────────────────────────────────────
+def clamp_int(value, default, lo, hi):
+    """Coerce value to int and clamp to [lo, hi]; return default on failure."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+def clamp_float(value, default, lo, hi):
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+@app.errorhandler(Exception)
+def handle_uncaught(err):
+    """Return JSON 500 instead of HTML error pages so the frontend can show a useful banner."""
+    if hasattr(err, 'code') and isinstance(err.code, int):
+        return jsonify({'error': str(err)}), err.code
+    print(f"[ERROR] Uncaught exception: {err.__class__.__name__}: {err}")
+    return jsonify({'error': f'{err.__class__.__name__}: {err}'}), 500
+
+
+# ─────────────────────────────────────────────
 # Routes — Frontend
 # ─────────────────────────────────────────────
 @app.route('/')
@@ -112,48 +146,44 @@ def serve_static(path):
 # ─────────────────────────────────────────────
 # Routes — API
 # ─────────────────────────────────────────────
+VALID_ALGORITHMS = {'boolean', 'tfidf', 'bm25', 'hybrid'}
+
+
 @app.route('/api/search', methods=['POST'])
 def api_search():
     """
     Search endpoint.
     Body: { "query": str, "algorithm": str, "top_k": int, "alpha": float, "k1": float, "b": float }
     """
-    data = request.get_json()
-    query = data.get('query', '').strip()
+    data = request.get_json(silent=True) or {}
+    query = (data.get('query') or '').strip()
     algorithm = data.get('algorithm', 'bm25')
-    top_k = data.get('top_k', 10)
-    alpha = data.get('alpha', 0.6)
-    k1 = data.get('k1')
-    b = data.get('b')
+    top_k = clamp_int(data.get('top_k', 10), default=10, lo=1, hi=200)
 
     if not query:
         return jsonify({'error': 'Empty query'}), 400
-
-    # Select model
-    if algorithm == 'boolean':
-        model = boolean_model
-    elif algorithm == 'tfidf':
-        model = tfidf_model
-    elif algorithm == 'bm25':
-        if k1 is not None or b is not None:
-            bm25_model.set_params(k1=k1, b=b)
-        model = bm25_model
-    elif algorithm == 'hybrid':
-        hybrid_model.set_alpha(alpha)
-        model = hybrid_model
-    else:
+    if algorithm not in VALID_ALGORITHMS:
         return jsonify({'error': f'Unknown algorithm: {algorithm}'}), 400
 
     t0 = time.time()
 
-    if algorithm == 'hybrid':
-        results = model.search(query, top_k=top_k, alpha=alpha)
-    else:
-        results = model.search(query, top_k=top_k)
+    if algorithm == 'boolean':
+        results = boolean_model.search(query, top_k=top_k)
+    elif algorithm == 'tfidf':
+        results = tfidf_model.search(query, top_k=top_k)
+    elif algorithm == 'bm25':
+        # Per-request override (does NOT mutate the singleton).
+        k1 = clamp_float(data.get('k1'), default=None, lo=0.0, hi=10.0) \
+            if data.get('k1') is not None else None
+        b = clamp_float(data.get('b'), default=None, lo=0.0, hi=1.0) \
+            if data.get('b') is not None else None
+        results = bm25_model.search(query, top_k=top_k, k1=k1, b=b)
+    else:  # hybrid
+        alpha = clamp_float(data.get('alpha', 0.6), default=0.6, lo=0.0, hi=1.0)
+        results = hybrid_model.search(query, top_k=top_k, alpha=alpha)
 
     elapsed = time.time() - t0
 
-    # Build response
     result_docs = []
     for doc_id, score in results:
         doc = documents.get(int(doc_id), {})
@@ -180,9 +210,9 @@ def api_compare():
     Compare all algorithms for the same query.
     Body: { "query": str, "top_k": int }
     """
-    data = request.get_json()
-    query = data.get('query', '').strip()
-    top_k = data.get('top_k', 10)
+    data = request.get_json(silent=True) or {}
+    query = (data.get('query') or '').strip()
+    top_k = clamp_int(data.get('top_k', 10), default=10, lo=1, hi=200)
 
     if not query:
         return jsonify({'error': 'Empty query'}), 400
@@ -236,15 +266,118 @@ def api_evaluate():
     return jsonify(results)
 
 
+@app.route('/api/evaluate-stream', methods=['GET'])
+def api_evaluate_stream():
+    """
+    Stream evaluation progress over Server-Sent Events.
+
+    Query params: top_k (default 100)
+
+    Emits one SSE event per:
+      - 'start'        — once, with totals
+      - 'model_start'  — when a model begins
+      - 'progress'     — after each query (overall_pct + per-model counts)
+      - 'model_done'   — when a model finishes (with its aggregated metrics)
+      - 'complete'     — once, with the full results array (same shape as /api/evaluate)
+      - 'error'        — if anything blows up
+    """
+    top_k = clamp_int(request.args.get('top_k', 100), default=100, lo=1, hi=500)
+    k_values = [5, 10, 20]
+
+    models_list = [
+        ('tfidf', tfidf_model),
+        ('bm25', bm25_model),
+        ('hybrid', hybrid_model),
+    ]
+
+    eligible = [(qid, qtext) for qid, qtext in queries.items() if qid in relevance]
+    total_queries = len(eligible)
+    total_steps = len(models_list) * total_queries
+
+    def sse(payload):
+        return f"data: {json.dumps(payload)}\n\n"
+
+    def generate():
+        try:
+            yield sse({
+                'event': 'start',
+                'total_models': len(models_list),
+                'total_queries': total_queries,
+                'total_steps': total_steps,
+                'models': [
+                    {'key': key, 'name': model.get_name()}
+                    for key, model in models_list
+                ],
+            })
+
+            completed_steps = 0
+            all_results = []
+
+            for model_idx, (key, model) in enumerate(models_list):
+                yield sse({
+                    'event': 'model_start',
+                    'model_index': model_idx,
+                    'model_key': key,
+                    'model_name': model.get_name(),
+                })
+
+                per_query_results = []
+                for q_idx, (qid, qtext) in enumerate(eligible):
+                    results = model.search(qtext, top_k=top_k)
+                    retrieved_ids = [doc_id for doc_id, _ in results]
+                    eval_result = evaluator.evaluate_query(qid, retrieved_ids, k_values)
+                    if eval_result:
+                        per_query_results.append(eval_result)
+
+                    completed_steps += 1
+                    yield sse({
+                        'event': 'progress',
+                        'model_index': model_idx,
+                        'model_key': key,
+                        'queries_done': q_idx + 1,
+                        'total_queries': total_queries,
+                        'completed_steps': completed_steps,
+                        'total_steps': total_steps,
+                        'overall_pct': round(100 * completed_steps / total_steps, 2),
+                    })
+
+                aggregated = evaluator.aggregate(per_query_results, model.get_name(), k_values)
+                model_result = {'aggregated': aggregated, 'per_query': per_query_results}
+                all_results.append(model_result)
+
+                yield sse({
+                    'event': 'model_done',
+                    'model_index': model_idx,
+                    'model_key': key,
+                    'model_name': model.get_name(),
+                    'aggregated': aggregated,
+                })
+
+            yield sse({'event': 'complete', 'results': all_results})
+
+        except Exception as e:
+            yield sse({'event': 'error', 'message': str(e)})
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
+
 @app.route('/api/evaluate-query', methods=['POST'])
 def api_evaluate_query():
     """
     Evaluate all models on a single query (if it has relevance judgments).
     Body: { "query_id": int, "top_k": int }
     """
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     query_id = data.get('query_id')
-    top_k = data.get('top_k', 100)
+    top_k = clamp_int(data.get('top_k', 100), default=100, lo=1, hi=500)
 
     if query_id is None or query_id not in queries:
         return jsonify({'error': 'Invalid or missing query_id'}), 400

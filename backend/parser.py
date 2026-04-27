@@ -124,7 +124,8 @@ def parse_cisi_queries(filepath):
             if stripped == '.W':
                 current_field = 'text'
                 field_content = []
-            elif stripped.startswith('.'):
+            elif re.match(r'^\.[A-Z]\b', stripped):
+                # Real CISI marker (e.g. .T, .A, .B, .X) — terminate the .W body.
                 if current_field == 'text' and field_content:
                     break
             else:

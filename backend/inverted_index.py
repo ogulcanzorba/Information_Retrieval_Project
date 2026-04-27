@@ -6,7 +6,7 @@ import json
 import os
 import math
 from collections import defaultdict, Counter
-from backend.preprocessor import preprocess, get_document_text
+from backend.preprocessor import preprocess, get_document_text, get_config_signature
 
 
 class InvertedIndex:
@@ -151,31 +151,45 @@ class InvertedIndex:
         return [{'length': k, 'count': v} for k, v in sorted(bins.items())]
     
     def save(self, filepath):
-        """Save the index to a JSON file."""
+        """Save the index to a JSON file. Vocabulary is sorted for deterministic output."""
         data = {
+            'config_signature': get_config_signature(),
             'index': self.index,
             'doc_lengths': {str(k): v for k, v in self.doc_lengths.items()},
             'num_docs': self.num_docs,
             'total_tokens': self.total_tokens,
-            'vocabulary': list(self.vocabulary),
+            'vocabulary': sorted(self.vocabulary),
         }
-        
+
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f)
-        
+            json.dump(data, f, sort_keys=True)
+
         file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
         print(f"[InvertedIndex] Saved index to {filepath} ({file_size_mb:.1f} MB)")
-    
+
     def load(self, filepath):
-        """Load the index from a JSON file."""
+        """
+        Load the index from a JSON file.
+
+        Returns True if the cache matches the current preprocessor config,
+        False if it's stale (caller should rebuild).
+        """
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
+        cached_sig = data.get('config_signature')
+        current_sig = get_config_signature()
+        if cached_sig != current_sig:
+            print(f"[InvertedIndex] Cache config mismatch "
+                  f"(cached={cached_sig}, current={current_sig}). Rebuild required.")
+            return False
+
         self.index = data['index']
         self.doc_lengths = {int(k): v for k, v in data['doc_lengths'].items()}
         self.num_docs = data['num_docs']
         self.total_tokens = data['total_tokens']
         self.vocabulary = set(data['vocabulary'])
-        
+
         print(f"[InvertedIndex] Loaded index: {len(self.vocabulary)} terms, {self.num_docs} docs")
+        return True

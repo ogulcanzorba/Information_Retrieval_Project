@@ -22,103 +22,113 @@ class BooleanModel:
         self.documents = documents
         self.all_doc_ids = set(documents.keys())
     
+    OPERATORS = {'AND', 'OR', 'NOT'}
+
     def search(self, query, top_k=10):
         """
         Execute a boolean query and return matching documents.
-        
+
         Supports:
-          - AND: "information AND retrieval"
-          - OR: "library OR database"
-          - NOT: "NOT obsolete"
-          - Parentheses: "(cat OR dog) AND NOT fish"
+          - AND / OR / NOT (case-insensitive)
+          - Parentheses
+          - Implicit AND before NOT: "cat NOT dog" → "cat AND NOT dog"
           - Plain text (treated as AND of all terms)
-        
-        Args:
-            query: Boolean query string
-            top_k: Maximum number of results to return
-        
-        Returns:
-            List of (doc_id, score) tuples where score is 1.0 for all matches
         """
         query = query.strip()
-        
+
         if not query:
             return []
-        
-        # Check if query contains boolean operators
-        has_operators = bool(re.search(r'\b(AND|OR|NOT)\b', query))
-        
+
+        # Case-insensitive operator detection
+        has_operators = bool(re.search(r'\b(AND|OR|NOT)\b', query, re.IGNORECASE))
+
         if has_operators:
             result_set = self._evaluate_boolean(query)
         else:
-            # Treat as AND of all terms
             result_set = self._and_query(query)
-        
-        # Convert to list of (doc_id, score) — Boolean has no ranking
+
         results = [(doc_id, 1.0) for doc_id in sorted(result_set)]
         return results[:top_k]
-    
+
     def _evaluate_boolean(self, query):
         """
         Parse and evaluate a boolean expression.
         Handles AND, OR, NOT with proper precedence using recursive descent.
         """
         tokens = self._tokenize_query(query)
-        pos = [0]  # Use list for mutability in nested functions
-        
+        pos = [0]
+
+        def peek():
+            return tokens[pos[0]] if pos[0] < len(tokens) else None
+
         def parse_or():
             left = parse_and()
-            while pos[0] < len(tokens) and tokens[pos[0]] == 'OR':
+            while peek() == 'OR':
                 pos[0] += 1
                 right = parse_and()
                 left = left | right
             return left
-        
+
         def parse_and():
             left = parse_not()
-            while pos[0] < len(tokens) and tokens[pos[0]] == 'AND':
-                pos[0] += 1
-                right = parse_not()
-                left = left & right
+            # Loop while next token is AND, NOT (implicit AND), or a term/paren
+            # (implicit-AND between two terms is intentionally not enabled — only
+            # implicit AND before NOT, which is the common case "cat NOT dog").
+            while True:
+                tok = peek()
+                if tok == 'AND':
+                    pos[0] += 1
+                    right = parse_not()
+                    left = left & right
+                elif tok == 'NOT':
+                    # Implicit AND: "cat NOT dog" → "cat AND NOT dog"
+                    right = parse_not()
+                    left = left & right
+                else:
+                    break
             return left
-        
+
         def parse_not():
-            if pos[0] < len(tokens) and tokens[pos[0]] == 'NOT':
+            if peek() == 'NOT':
                 pos[0] += 1
+                # Bare 'NOT' with no operand — treat as empty rather than
+                # returning the entire collection.
+                if peek() is None or peek() in self.OPERATORS or peek() == ')':
+                    return set()
                 operand = parse_primary()
                 return self.all_doc_ids - operand
             return parse_primary()
-        
+
         def parse_primary():
-            if pos[0] < len(tokens) and tokens[pos[0]] == '(':
-                pos[0] += 1  # skip '('
-                result = parse_or()
-                if pos[0] < len(tokens) and tokens[pos[0]] == ')':
-                    pos[0] += 1  # skip ')'
-                return result
-            
-            if pos[0] < len(tokens):
-                term = tokens[pos[0]]
+            tok = peek()
+            if tok == '(':
                 pos[0] += 1
-                # Preprocess the term
-                processed = preprocess(term)
-                if processed:
-                    postings = self.index.get_postings(processed[0])
-                    return set(postings.keys())
+                result = parse_or()
+                if peek() == ')':
+                    pos[0] += 1
+                # Unmatched paren: just stop, don't crash.
+                return result
+
+            if tok is None:
                 return set()
-            
+
+            pos[0] += 1
+            processed = preprocess(tok)
+            if processed:
+                postings = self.index.get_postings(processed[0])
+                return set(postings.keys())
             return set()
-        
+
         return parse_or()
-    
+
     def _tokenize_query(self, query):
         """
-        Tokenize a boolean query into terms, operators, and parentheses.
+        Tokenize a boolean query into terms, operators (uppercased), and parens.
         """
         tokens = []
         i = 0
         query = query.strip()
-        
+
         while i < len(query):
             if query[i] in '()':
                 tokens.append(query[i])
@@ -126,14 +136,17 @@ class BooleanModel:
             elif query[i].isspace():
                 i += 1
             else:
-                # Read a word
                 j = i
                 while j < len(query) and not query[j].isspace() and query[j] not in '()':
                     j += 1
                 word = query[i:j]
-                tokens.append(word)
+                # Normalize operators to uppercase; leave terms alone.
+                if word.upper() in self.OPERATORS:
+                    tokens.append(word.upper())
+                else:
+                    tokens.append(word)
                 i = j
-        
+
         return tokens
     
     def _and_query(self, query):

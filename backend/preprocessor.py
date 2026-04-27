@@ -116,6 +116,22 @@ def preprocess_query(query_text, do_stem=True, do_remove_stopwords=True):
     return preprocess(query_text, do_stem, do_remove_stopwords)
 
 
+def get_config_signature():
+    """
+    Return a stable fingerprint of the preprocessing config.
+    If anyone changes stopwords, the tokenizer regex, or the stemmer,
+    the cached inverted index becomes invalid.
+    """
+    import hashlib
+    parts = [
+        'tokenizer:' + r'\b[a-z]{2,}\b',
+        'stemmer:' + _stemmer.__class__.__name__,
+        'stopwords:' + ','.join(sorted(_stop_words)),
+    ]
+    blob = '|'.join(parts).encode('utf-8')
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
 def get_document_text(doc):
     """
     Combine document title and abstract for indexing.

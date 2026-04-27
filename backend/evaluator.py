@@ -131,57 +131,75 @@ class Evaluator:
         
         return result
     
+    @staticmethod
+    def aggregate(per_query_results, model_name, k_values=[5, 10, 20]):
+        """
+        Aggregate per-query metrics into MAP and mean P/R/F1 at each K.
+
+        Args:
+            per_query_results: List of dicts from evaluate_query()
+            model_name: Display name for the model
+            k_values: List of K values
+
+        Returns:
+            Dict of aggregated metrics
+        """
+        num_queries = len(per_query_results)
+
+        aggregated = {
+            'model_name': model_name,
+            'num_queries_evaluated': num_queries,
+        }
+
+        if num_queries == 0:
+            return aggregated
+
+        ap_values = [r['average_precision'] for r in per_query_results]
+        aggregated['MAP'] = round(sum(ap_values) / num_queries, 4)
+
+        for k in k_values:
+            p_values = [r[f'precision_at_{k}'] for r in per_query_results]
+            r_values = [r[f'recall_at_{k}'] for r in per_query_results]
+            f1_values = [r[f'f1_at_{k}'] for r in per_query_results]
+
+            aggregated[f'mean_precision_at_{k}'] = round(sum(p_values) / num_queries, 4)
+            aggregated[f'mean_recall_at_{k}'] = round(sum(r_values) / num_queries, 4)
+            aggregated[f'mean_f1_at_{k}'] = round(sum(f1_values) / num_queries, 4)
+
+        return aggregated
+
     def evaluate_model(self, model, queries, k_values=[5, 10, 20], top_k=100):
         """
         Evaluate a model across all queries.
-        
+
         Args:
             model: Retrieval model with a search(query, top_k) method
             queries: dict of {query_id: query_text}
             k_values: List of K values
             top_k: Number of documents to retrieve per query
-        
+
         Returns:
             Dict with per-query and aggregated metrics
         """
         per_query_results = []
-        
+
         for query_id, query_text in queries.items():
             if query_id not in self.relevance:
                 continue
-            
+
             results = model.search(query_text, top_k=top_k)
             retrieved_ids = [doc_id for doc_id, _ in results]
-            
+
             eval_result = self.evaluate_query(query_id, retrieved_ids, k_values)
             if eval_result:
                 per_query_results.append(eval_result)
-        
+
         if not per_query_results:
             return {'error': 'No queries with relevance judgments found'}
-        
-        # Aggregate metrics
-        num_queries = len(per_query_results)
-        
-        aggregated = {
-            'model_name': model.get_name() if hasattr(model, 'get_name') else 'Unknown',
-            'num_queries_evaluated': num_queries,
-        }
-        
-        # MAP
-        ap_values = [r['average_precision'] for r in per_query_results]
-        aggregated['MAP'] = round(sum(ap_values) / num_queries, 4)
-        
-        # Mean P@K, R@K, F1@K
-        for k in k_values:
-            p_values = [r[f'precision_at_{k}'] for r in per_query_results]
-            r_values = [r[f'recall_at_{k}'] for r in per_query_results]
-            f1_values = [r[f'f1_at_{k}'] for r in per_query_results]
-            
-            aggregated[f'mean_precision_at_{k}'] = round(sum(p_values) / num_queries, 4)
-            aggregated[f'mean_recall_at_{k}'] = round(sum(r_values) / num_queries, 4)
-            aggregated[f'mean_f1_at_{k}'] = round(sum(f1_values) / num_queries, 4)
-        
+
+        model_name = model.get_name() if hasattr(model, 'get_name') else 'Unknown'
+        aggregated = self.aggregate(per_query_results, model_name, k_values)
+
         return {
             'aggregated': aggregated,
             'per_query': per_query_results
