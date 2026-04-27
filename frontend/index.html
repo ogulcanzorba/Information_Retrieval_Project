@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="CISI Information Retrieval System — Compare Boolean, TF-IDF, BM25, and Hybrid search algorithms with real-time evaluation metrics.">
     <title>CISI IR System — Information Retrieval Demo</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%23818cf8' stroke-width='2.5'/%3E%3Cpath d='M10 16h12M16 10v12' stroke='%23c084fc' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -12,14 +13,16 @@
     <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
+    <a href="#search-section" class="skip-link">Skip to main content</a>
+
     <!-- Animated Background -->
-    <div class="bg-gradient"></div>
-    <div class="bg-grid"></div>
+    <div class="bg-gradient" aria-hidden="true"></div>
+    <div class="bg-grid" aria-hidden="true"></div>
 
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-brand">
-            <div class="nav-logo">
+            <div class="nav-logo" aria-hidden="true">
                 <svg viewBox="0 0 32 32" fill="none">
                     <circle cx="16" cy="16" r="14" stroke="url(#navGrad)" stroke-width="2.5"/>
                     <path d="M10 16h12M16 10v12" stroke="url(#navGrad)" stroke-width="2" stroke-linecap="round"/>
@@ -29,12 +32,17 @@
             </div>
             <span class="nav-title">CISI<span class="accent">Search</span></span>
         </div>
-        <div class="nav-links">
+        <div class="nav-links" id="nav-links">
             <a href="#search-section" class="nav-link active" data-section="search">Search</a>
             <a href="#compare-section" class="nav-link" data-section="compare">Compare</a>
             <a href="#evaluate-section" class="nav-link" data-section="evaluate">Evaluate</a>
             <a href="#stats-section" class="nav-link" data-section="stats">Statistics</a>
         </div>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-links">
+            <span class="nav-toggle-bar" aria-hidden="true"></span>
+            <span class="nav-toggle-bar" aria-hidden="true"></span>
+            <span class="nav-toggle-bar" aria-hidden="true"></span>
+        </button>
     </nav>
 
     <!-- Main Content -->
@@ -55,14 +63,14 @@
                 112 queries, and 4 distinct retrieval algorithms compared side by side.
             </p>
             <div class="hero-chips">
-                <span class="chip chip-blue">Boolean</span>
-                <span class="chip chip-purple">TF-IDF</span>
-                <span class="chip chip-pink">BM25</span>
-                <span class="chip chip-orange">Hybrid</span>
+                <button type="button" class="chip chip-blue" data-jump-algo="boolean">Boolean</button>
+                <button type="button" class="chip chip-purple" data-jump-algo="tfidf">TF-IDF</button>
+                <button type="button" class="chip chip-pink" data-jump-algo="bm25">BM25</button>
+                <button type="button" class="chip chip-orange" data-jump-algo="hybrid">Hybrid</button>
             </div>
             <a href="#search-section" class="hero-cta">
                 <span>Start Searching</span>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 3v14m0 0l5-5m-5 5l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v14m0 0l5-5m-5 5l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
         </section>
 
@@ -72,7 +80,7 @@
         <section class="section" id="search-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                     Search Engine
                 </h2>
                 <p class="section-subtitle">Choose an algorithm, type your query, and explore the results.</p>
@@ -106,13 +114,26 @@
 
             <!-- Search Bar -->
             <div class="search-bar-container">
+                <label for="search-input" class="visually-hidden">Search query</label>
                 <div class="search-bar glass-card" id="search-bar">
-                    <svg class="search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    <input type="text" id="search-input" placeholder='Try: "information retrieval systems"' autocomplete="off">
+                    <svg class="search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input type="search" id="search-input" placeholder='Try: "information retrieval systems"' autocomplete="off" enterkeyhint="search">
+                    <button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
                     <button class="search-btn" id="search-btn">
                         <span>Search</span>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
+                </div>
+
+                <!-- Preset queries (Search) -->
+                <div class="preset-queries preset-queries-search" id="search-presets">
+                    <span class="preset-label">Try:</span>
+                    <button type="button" class="preset-btn" data-query="information retrieval systems">information retrieval</button>
+                    <button type="button" class="preset-btn" data-query="automatic indexing">automatic indexing</button>
+                    <button type="button" class="preset-btn" data-query="library automation">library automation</button>
+                    <button type="button" class="preset-btn" data-query="document clustering">document clustering</button>
                 </div>
 
                 <!-- Boolean operators -->
@@ -127,8 +148,8 @@
                 <!-- Hybrid slider -->
                 <div class="hybrid-controls" id="hybrid-controls" style="display:none">
                     <div class="slider-group">
-                        <label>Alpha (BM25 Weight): <span id="alpha-value">0.60</span></label>
-                        <input type="range" id="alpha-slider" min="0" max="1" step="0.05" value="0.60">
+                        <label for="alpha-slider">Alpha (BM25 Weight): <span id="alpha-value">0.60</span></label>
+                        <input type="range" id="alpha-slider" min="0" max="1" step="0.05" value="0.60" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.60">
                         <div class="slider-labels">
                             <span>TF-IDF Only</span>
                             <span>BM25 Only</span>
@@ -140,19 +161,22 @@
                 <div class="bm25-controls" id="bm25-controls" style="display:none">
                     <div class="slider-row">
                         <div class="slider-group">
-                            <label>k1 (Saturation): <span id="k1-value">1.50</span></label>
-                            <input type="range" id="k1-slider" min="0" max="3" step="0.1" value="1.5">
+                            <label for="k1-slider">k1 (Saturation): <span id="k1-value">1.50</span></label>
+                            <input type="range" id="k1-slider" min="0" max="3" step="0.1" value="1.5" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1.5">
                         </div>
                         <div class="slider-group">
-                            <label>b (Length Norm): <span id="b-value">0.75</span></label>
-                            <input type="range" id="b-slider" min="0" max="1" step="0.05" value="0.75">
+                            <label for="b-slider">b (Length Norm): <span id="b-value">0.75</span></label>
+                            <input type="range" id="b-slider" min="0" max="1" step="0.05" value="0.75" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.75">
                         </div>
+                    </div>
+                    <div class="bm25-reset-row">
+                        <button type="button" class="link-btn" id="bm25-reset">Reset to defaults</button>
                     </div>
                 </div>
 
                 <!-- Top-K selector -->
                 <div class="topk-row">
-                    <label>Results:</label>
+                    <label for="topk-select">Results:</label>
                     <select id="topk-select">
                         <option value="5">Top 5</option>
                         <option value="10" selected>Top 10</option>
@@ -161,6 +185,9 @@
                     </select>
                 </div>
             </div>
+
+            <!-- Error Banner -->
+            <div class="error-banner" id="search-error" style="display:none"></div>
 
             <!-- Search Results -->
             <div class="results-area" id="results-area" style="display:none">
@@ -173,13 +200,13 @@
 
             <!-- Empty State -->
             <div class="empty-state" id="empty-state">
-                <div class="empty-icon">
+                <div class="empty-icon" aria-hidden="true">
                     <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
                         <circle cx="28" cy="28" r="18" stroke="currentColor" stroke-width="3" opacity="0.3"/>
                         <path d="M42 42l14 14" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.3"/>
                     </svg>
                 </div>
-                <p>Enter a query above to search the CISI collection</p>
+                <p>Enter a query above to search the CISI collection.</p>
             </div>
         </section>
 
@@ -189,14 +216,18 @@
         <section class="section" id="compare-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>
                     Algorithm Comparison
                 </h2>
                 <p class="section-subtitle">Compare all 4 algorithms side-by-side for the same query.</p>
             </div>
 
+            <label for="compare-input" class="visually-hidden">Comparison query</label>
             <div class="compare-search glass-card">
-                <input type="text" id="compare-input" placeholder='Enter a query to compare all algorithms...' autocomplete="off">
+                <input type="search" id="compare-input" placeholder='Enter a query to compare all algorithms...' autocomplete="off" enterkeyhint="search">
+                <button class="search-clear" id="compare-clear" type="button" aria-label="Clear comparison query" hidden>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
                 <button class="search-btn" id="compare-btn">Compare All</button>
             </div>
 
@@ -209,6 +240,8 @@
                 <button class="preset-btn" data-query="document clustering techniques">document clustering techniques</button>
             </div>
 
+            <div class="error-banner" id="compare-error" style="display:none"></div>
+
             <div class="compare-grid" id="compare-grid" style="display:none"></div>
         </section>
 
@@ -218,21 +251,35 @@
         <section class="section" id="evaluate-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3v18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 17l4-8 4 4 5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 3v18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 17l4-8 4 4 5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Performance Evaluation
                 </h2>
                 <p class="section-subtitle">Evaluate retrieval quality across all 112 queries using standard IR metrics.</p>
             </div>
 
             <button class="eval-btn glass-card" id="run-eval-btn">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>
                 <span>Run Full Evaluation</span>
             </button>
+            <p class="eval-hint">Runs all rankers on every query with relevance judgments. Takes ~1–2 minutes.</p>
 
-            <div class="eval-loading" id="eval-loading" style="display:none">
-                <div class="spinner"></div>
-                <span>Evaluating models on 112 queries... This may take a moment.</span>
+            <div class="eval-progress glass-card" id="eval-progress" style="display:none" aria-busy="true" aria-live="polite">
+                <div class="eval-progress-header">
+                    <div class="eval-progress-title">
+                        <div class="spinner spinner-sm" aria-hidden="true"></div>
+                        <span id="eval-progress-label">Starting evaluation...</span>
+                    </div>
+                    <div class="eval-progress-pct" id="eval-progress-pct">0%</div>
+                </div>
+                <div class="eval-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="eval-progress-bar-fill" id="eval-progress-bar-fill" style="width:0%"></div>
+                </div>
+                <div class="eval-model-list" id="eval-model-list"></div>
+                <div class="eval-progress-actions">
+                    <button type="button" class="link-btn link-btn-danger" id="eval-abort-btn">Abort</button>
+                </div>
             </div>
+            <div class="error-banner" id="eval-error" style="display:none"></div>
 
             <div class="eval-results" id="eval-results" style="display:none">
                 <!-- MAP Cards -->
@@ -269,13 +316,13 @@
         <section class="section" id="stats-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M4 9h16" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="10" cy="7" r="1" fill="currentColor"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M4 9h16" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="10" cy="7" r="1" fill="currentColor"/></svg>
                     Collection Statistics
                 </h2>
                 <p class="section-subtitle">An overview of the CISI dataset and inverted index properties.</p>
             </div>
 
-            <div class="stats-grid" id="stats-grid">
+            <div class="stats-grid" id="stats-grid" aria-live="polite">
                 <div class="stat-card glass-card loading-pulse">
                     <div class="stat-value" id="stat-docs">—</div>
                     <div class="stat-label">Documents</div>
@@ -302,13 +349,17 @@
                 </div>
             </div>
 
+            <div class="error-banner" id="stats-error" style="display:none"></div>
+
             <div class="charts-row">
                 <div class="chart-card glass-card">
                     <h3>Top 20 Terms by Document Frequency</h3>
+                    <p class="chart-note">Terms shown after Porter stemming — e.g. <code>inform</code> represents <em>inform/information/informational</em>.</p>
                     <canvas id="top-terms-chart"></canvas>
                 </div>
                 <div class="chart-card glass-card">
                     <h3>Document Length Distribution</h3>
+                    <p class="chart-note">Histogram of token counts per document after preprocessing.</p>
                     <canvas id="doc-length-chart"></canvas>
                 </div>
             </div>
@@ -322,8 +373,30 @@
             <span>CSE 422 — Information Retrieval Project</span>
             <span class="footer-sep">|</span>
             <span>CISI Collection • 1460 Documents • 4 Algorithms</span>
+            <span class="footer-sep">|</span>
+            <a class="footer-link" href="https://github.com/ogulcanzorba/Information_Retrieval_Project" target="_blank" rel="noopener noreferrer">View source on GitHub</a>
         </div>
     </footer>
+
+    <!-- Document Detail Modal -->
+    <div class="modal-overlay" id="doc-modal" hidden role="dialog" aria-modal="true" aria-labelledby="doc-modal-title">
+        <div class="modal-card glass-card">
+            <button type="button" class="modal-close" id="doc-modal-close" aria-label="Close document">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <div class="modal-body" id="doc-modal-body">
+                <div class="modal-doc-id" id="doc-modal-id"></div>
+                <h2 class="modal-doc-title" id="doc-modal-title"></h2>
+                <div class="modal-doc-author" id="doc-modal-author"></div>
+                <div class="modal-section-label">Abstract</div>
+                <div class="modal-doc-abstract" id="doc-modal-abstract"></div>
+                <div class="modal-doc-xrefs-wrap" id="doc-modal-xrefs-wrap" hidden>
+                    <div class="modal-section-label">Cross-references</div>
+                    <pre class="modal-doc-xrefs" id="doc-modal-xrefs"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="scripts/app.js"></script>
 </body>

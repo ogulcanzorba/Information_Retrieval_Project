@@ -38,14 +38,27 @@ const ALGO_COLORS = {
     hybrid: { bg: 'rgba(251,146,60,0.8)', border: '#fb923c' }
 };
 
+// Per-algorithm scoring scale notes — explain what the score number means.
+const SCORE_NOTES = {
+    boolean: 'Boolean: 1.0 = match, 0.0 = no match. Order is by document ID, no ranking.',
+    tfidf: 'TF-IDF: cosine similarity in [0, 1]. Higher = closer to the query vector.',
+    bm25: 'BM25: unbounded probabilistic relevance score. Higher = more relevant; magnitude depends on k1, b, and IDF.',
+    hybrid: 'Hybrid: weighted average of min-max-normalized BM25 and TF-IDF scores in [0, 1].',
+};
+
 // ── Init ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
+    initNavToggle();
+    initHeroChips();
     initAlgoTabs();
     initSearchBar();
     initControls();
     initCompare();
     initEvaluate();
+    initDocModal();
+    initKeyboardShortcuts();
+    initBgAnimationPause();
     loadStats();
 });
 
@@ -56,6 +69,14 @@ function initNavigation() {
         link.addEventListener('click', (e) => {
             links.forEach(l => l.classList.remove('active'));
             link.classList.add('active');
+            // Close mobile drawer on link tap
+            const navLinks = document.getElementById('nav-links');
+            const navToggle = document.getElementById('nav-toggle');
+            if (navLinks && navLinks.classList.contains('open')) {
+                navLinks.classList.remove('open');
+                navToggle.setAttribute('aria-expanded', 'false');
+                navToggle.classList.remove('open');
+            }
         });
     });
 
@@ -78,16 +99,97 @@ function initNavigation() {
     });
 }
 
+// ── Mobile Nav Toggle ────────────────────────────
+function initNavToggle() {
+    const toggle = document.getElementById('nav-toggle');
+    const links = document.getElementById('nav-links');
+    if (!toggle || !links) return;
+    toggle.addEventListener('click', () => {
+        const isOpen = links.classList.toggle('open');
+        toggle.classList.toggle('open', isOpen);
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+}
+
+// ── Hero Chips → switch algo + scroll ────────────
+function initHeroChips() {
+    document.querySelectorAll('[data-jump-algo]').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const algo = chip.dataset.jumpAlgo;
+            selectAlgoTab(algo);
+            const target = document.getElementById('search-section');
+            if (target) target.scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+}
+
+function selectAlgoTab(algo) {
+    const tabs = document.querySelectorAll('.algo-tab');
+    tabs.forEach(t => {
+        const match = t.dataset.algo === algo;
+        t.classList.toggle('active', match);
+        if (match) currentAlgo = algo;
+    });
+    updateAlgoInfo();
+    updateControls();
+}
+
+// ── Keyboard Shortcuts ───────────────────────────
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // Don't intercept when typing in a field
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+        // "/" or Cmd/Ctrl+K to focus search
+        if (!isTyping && (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'))) {
+            e.preventDefault();
+            const input = document.getElementById('search-input');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+            return;
+        }
+
+        // Esc closes the document modal if open
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('doc-modal');
+            if (modal && !modal.hidden) closeDocModal();
+        }
+    });
+}
+
+// ── Pause bg animation when tab is hidden ────────
+function initBgAnimationPause() {
+    const bg = document.querySelector('.bg-gradient');
+    if (!bg) return;
+    document.addEventListener('visibilitychange', () => {
+        bg.style.animationPlayState = document.hidden ? 'paused' : 'running';
+    });
+}
+
 // ── Algorithm Tabs ───────────────────────────────
 function initAlgoTabs() {
     const tabs = document.querySelectorAll('.algo-tab');
-    tabs.forEach(tab => {
+    tabs.forEach((tab, idx) => {
         tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            currentAlgo = tab.dataset.algo;
-            updateAlgoInfo();
-            updateControls();
+            selectAlgoTab(tab.dataset.algo);
+        });
+        // Arrow-key tab navigation
+        tab.addEventListener('keydown', (e) => {
+            const list = Array.from(tabs);
+            const i = list.indexOf(tab);
+            let next = null;
+            if (e.key === 'ArrowRight') next = list[(i + 1) % list.length];
+            else if (e.key === 'ArrowLeft') next = list[(i - 1 + list.length) % list.length];
+            else if (e.key === 'Home') next = list[0];
+            else if (e.key === 'End') next = list[list.length - 1];
+            if (next) {
+                e.preventDefault();
+                next.focus();
+                selectAlgoTab(next.dataset.algo);
+            }
         });
     });
     updateAlgoInfo();
@@ -119,37 +221,55 @@ function updateControls() {
 
 // ── Controls ─────────────────────────────────────
 function initControls() {
-    // Alpha slider
     const alphaSlider = document.getElementById('alpha-slider');
     const alphaValue = document.getElementById('alpha-value');
     alphaSlider.addEventListener('input', () => {
-        alphaValue.textContent = parseFloat(alphaSlider.value).toFixed(2);
+        const v = parseFloat(alphaSlider.value).toFixed(2);
+        alphaValue.textContent = v;
+        alphaSlider.setAttribute('aria-valuenow', v);
     });
 
-    // BM25 sliders
     const k1Slider = document.getElementById('k1-slider');
     const k1Value = document.getElementById('k1-value');
     k1Slider.addEventListener('input', () => {
-        k1Value.textContent = parseFloat(k1Slider.value).toFixed(2);
+        const v = parseFloat(k1Slider.value).toFixed(2);
+        k1Value.textContent = v;
+        k1Slider.setAttribute('aria-valuenow', v);
     });
 
     const bSlider = document.getElementById('b-slider');
     const bValue = document.getElementById('b-value');
     bSlider.addEventListener('input', () => {
-        bValue.textContent = parseFloat(bSlider.value).toFixed(2);
+        const v = parseFloat(bSlider.value).toFixed(2);
+        bValue.textContent = v;
+        bSlider.setAttribute('aria-valuenow', v);
     });
 
-    // Boolean operator buttons
+    // BM25 reset button
+    const bm25Reset = document.getElementById('bm25-reset');
+    if (bm25Reset) {
+        bm25Reset.addEventListener('click', () => {
+            k1Slider.value = '1.5';
+            bSlider.value = '0.75';
+            k1Slider.dispatchEvent(new Event('input'));
+            bSlider.dispatchEvent(new Event('input'));
+        });
+    }
+
+    // Boolean operator buttons — REPLACE selection (or insert at cursor)
     document.querySelectorAll('.bool-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const input = document.getElementById('search-input');
             const op = btn.dataset.op;
-            const cursorPos = input.selectionStart;
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
             const text = input.value;
+            // Spaces depend on whether we replace or insert
             const insertion = ` ${op} `;
-            input.value = text.slice(0, cursorPos) + insertion + text.slice(cursorPos);
+            input.value = text.slice(0, start) + insertion + text.slice(end);
             input.focus();
-            input.setSelectionRange(cursorPos + insertion.length, cursorPos + insertion.length);
+            const newPos = start + insertion.length;
+            input.setSelectionRange(newPos, newPos);
         });
     });
 }
@@ -158,10 +278,40 @@ function initControls() {
 function initSearchBar() {
     const searchBtn = document.getElementById('search-btn');
     const searchInput = document.getElementById('search-input');
+    const clearBtn = document.getElementById('search-clear');
 
     searchBtn.addEventListener('click', doSearch);
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') doSearch();
+    });
+
+    function syncClearVisibility() {
+        if (clearBtn) clearBtn.hidden = searchInput.value.length === 0;
+    }
+    searchInput.addEventListener('input', syncClearVisibility);
+    syncClearVisibility();
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input'));
+            searchInput.focus();
+            // Hide results & restore empty state
+            const area = document.getElementById('results-area');
+            const empty = document.getElementById('empty-state');
+            if (area) area.style.display = 'none';
+            if (empty) empty.style.display = 'block';
+            hideError('search-error');
+        });
+    }
+
+    // Search-section presets
+    document.querySelectorAll('#search-presets .preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            searchInput.value = btn.dataset.query;
+            searchInput.dispatchEvent(new Event('input'));
+            doSearch();
+        });
     });
 }
 
@@ -183,6 +333,10 @@ async function doSearch() {
         b: currentAlgo === 'bm25' ? b : undefined,
     };
 
+    const btn = document.getElementById('search-btn');
+    hideError('search-error');
+    setButtonLoading(btn, true, 'Searching');
+
     try {
         const res = await fetch(`${API_BASE}/api/search`, {
             method: 'POST',
@@ -190,9 +344,13 @@ async function doSearch() {
             body: JSON.stringify(body),
         });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Server returned ${res.status}`);
         displayResults(data);
     } catch (err) {
         console.error('Search error:', err);
+        showError('search-error', `Search failed: ${err.message}. Check that the API is running.`);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -209,49 +367,116 @@ function displayResults(data) {
     countEl.textContent = `${data.num_results} result${data.num_results !== 1 ? 's' : ''} found`;
     timeEl.textContent = `${data.elapsed_ms} ms`;
 
-    listEl.innerHTML = '';
+    listEl.textContent = '';
 
     if (data.results.length === 0) {
-        listEl.innerHTML = '<div class="no-results">No matching documents found. Try a different query or algorithm.</div>';
+        const noRes = document.createElement('div');
+        noRes.className = 'no-results';
+        noRes.textContent = 'No matching documents found. Try a different query or algorithm.';
+        listEl.appendChild(noRes);
         return;
     }
 
-    data.results.forEach((doc, i) => {
-        const rankClass = i < 3 ? `rank-${i + 1}` : 'rank-default';
-        const card = document.createElement('div');
-        card.className = 'result-card';
-        card.style.animationDelay = `${i * 0.06}s`;
+    const algorithm = data.algorithm || 'bm25';
+    const showScore = algorithm !== 'boolean';
+    const scoreTooltip = SCORE_NOTES[algorithm] || '';
 
-        card.innerHTML = `
-            <div class="result-rank ${rankClass}">${i + 1}</div>
-            <div class="result-top">
-                <div class="result-title">${escapeHtml(doc.title || 'Untitled')}</div>
-                <div class="result-score">${doc.score.toFixed(4)}</div>
-            </div>
-            ${doc.author ? `<div class="result-author">by ${escapeHtml(doc.author)}</div>` : ''}
-            <div class="result-abstract">${escapeHtml(doc.abstract || 'No abstract available.')}</div>
-            <div class="result-meta">
-                <span>Doc #${doc.id}</span>
-            </div>
-        `;
-        listEl.appendChild(card);
+    data.results.forEach((doc, i) => {
+        listEl.appendChild(buildResultCard(doc, i, { showScore, scoreTooltip }));
     });
+}
+
+function buildResultCard(doc, index, opts) {
+    const { showScore, scoreTooltip } = opts;
+    const rankClass = index < 3 ? `rank-${index + 1}` : 'rank-default';
+
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.style.animationDelay = `${index * 0.06}s`;
+
+    const rank = document.createElement('div');
+    rank.className = `result-rank ${rankClass}`;
+    rank.textContent = String(index + 1);
+    card.appendChild(rank);
+
+    const top = document.createElement('div');
+    top.className = 'result-top';
+    const titleEl = document.createElement('div');
+    titleEl.className = 'result-title';
+    titleEl.textContent = doc.title || 'Untitled';
+    top.appendChild(titleEl);
+    if (showScore) {
+        const score = document.createElement('div');
+        score.className = 'result-score';
+        score.textContent = doc.score.toFixed(4);
+        if (scoreTooltip) score.title = scoreTooltip;
+        top.appendChild(score);
+    }
+    card.appendChild(top);
+
+    if (doc.author) {
+        const author = document.createElement('div');
+        author.className = 'result-author';
+        author.textContent = `by ${doc.author}`;
+        card.appendChild(author);
+    }
+
+    const abstract = document.createElement('div');
+    abstract.className = 'result-abstract';
+    abstract.textContent = doc.abstract || 'No abstract available.';
+    card.appendChild(abstract);
+
+    // Toggle the line-clamp on click
+    abstract.addEventListener('click', () => {
+        abstract.classList.toggle('expanded');
+    });
+
+    const meta = document.createElement('div');
+    meta.className = 'result-meta';
+    const docLink = document.createElement('button');
+    docLink.type = 'button';
+    docLink.className = 'doc-id-link';
+    docLink.textContent = `Doc #${doc.id}`;
+    docLink.addEventListener('click', () => openDocModal(doc.id));
+    meta.appendChild(docLink);
+    card.appendChild(meta);
+
+    return card;
 }
 
 // ── Compare ──────────────────────────────────────
 function initCompare() {
     const compareBtn = document.getElementById('compare-btn');
     const compareInput = document.getElementById('compare-input');
+    const clearBtn = document.getElementById('compare-clear');
 
     compareBtn.addEventListener('click', doCompare);
     compareInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') doCompare();
     });
 
-    // Preset queries
-    document.querySelectorAll('.preset-btn').forEach(btn => {
+    function syncClearVisibility() {
+        if (clearBtn) clearBtn.hidden = compareInput.value.length === 0;
+    }
+    compareInput.addEventListener('input', syncClearVisibility);
+    syncClearVisibility();
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            compareInput.value = '';
+            compareInput.dispatchEvent(new Event('input'));
+            compareInput.focus();
+            const grid = document.getElementById('compare-grid');
+            if (grid) grid.style.display = 'none';
+            hideError('compare-error');
+        });
+    }
+
+    // Preset queries inside the Compare section only
+    document.querySelectorAll('#preset-queries .preset-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             compareInput.value = btn.dataset.query;
+            compareInput.dispatchEvent(new Event('input'));
             doCompare();
         });
     });
@@ -261,6 +486,10 @@ async function doCompare() {
     const query = document.getElementById('compare-input').value.trim();
     if (!query) return;
 
+    const btn = document.getElementById('compare-btn');
+    hideError('compare-error');
+    setButtonLoading(btn, true, 'Comparing');
+
     try {
         const res = await fetch(`${API_BASE}/api/compare`, {
             method: 'POST',
@@ -268,16 +497,20 @@ async function doCompare() {
             body: JSON.stringify({ query, top_k: 10 }),
         });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Server returned ${res.status}`);
         displayComparison(data);
     } catch (err) {
         console.error('Compare error:', err);
+        showError('compare-error', `Compare failed: ${err.message}. Check that the API is running.`);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
 function displayComparison(data) {
     const grid = document.getElementById('compare-grid');
     grid.style.display = 'grid';
-    grid.innerHTML = '';
+    grid.textContent = '';
 
     const algos = ['boolean', 'tfidf', 'bm25', 'hybrid'];
 
@@ -289,82 +522,283 @@ function displayComparison(data) {
         col.className = 'compare-column';
         col.style.animationDelay = `${idx * 0.1}s`;
 
-        let resultsHTML = '';
+        const header = document.createElement('div');
+        header.className = 'compare-column-header';
+        const algoName = document.createElement('div');
+        algoName.className = `compare-algo-name algo-${algo}`;
+        algoName.textContent = info.model_name;
+        const meta = document.createElement('div');
+        meta.className = 'compare-meta';
+        meta.textContent = `${info.num_results} results · ${info.elapsed_ms}ms`;
+        header.appendChild(algoName);
+        header.appendChild(meta);
+        col.appendChild(header);
+
+        const resultsWrap = document.createElement('div');
+        resultsWrap.className = 'compare-results';
+
         if (info.results.length === 0) {
-            resultsHTML = '<div class="no-results">No results</div>';
+            const noRes = document.createElement('div');
+            noRes.className = 'no-results';
+            noRes.textContent = 'No results';
+            resultsWrap.appendChild(noRes);
         } else {
-            resultsHTML = info.results.map((doc, i) => `
-                <div class="compare-item">
-                    <div class="compare-item-rank">${i + 1}</div>
-                    <div class="compare-item-info">
-                        <div class="compare-item-title">${escapeHtml(doc.title || 'Untitled')}</div>
-                        <div class="compare-item-id">Doc #${doc.id} · Score: ${doc.score.toFixed(4)}</div>
-                    </div>
-                </div>
-            `).join('');
+            const showScore = algo !== 'boolean';
+            const tooltip = SCORE_NOTES[algo] || '';
+            info.results.forEach((doc, i) => {
+                resultsWrap.appendChild(buildCompareItem(doc, i, { showScore, tooltip }));
+            });
         }
 
-        col.innerHTML = `
-            <div class="compare-column-header">
-                <div class="compare-algo-name algo-${algo}">${info.model_name}</div>
-                <div class="compare-meta">${info.num_results} results · ${info.elapsed_ms}ms</div>
-            </div>
-            <div class="compare-results">${resultsHTML}</div>
-        `;
+        col.appendChild(resultsWrap);
         grid.appendChild(col);
     });
+}
+
+function buildCompareItem(doc, index, opts) {
+    const { showScore, tooltip } = opts;
+
+    const item = document.createElement('div');
+    item.className = 'compare-item';
+
+    const rank = document.createElement('div');
+    rank.className = 'compare-item-rank';
+    rank.textContent = String(index + 1);
+    item.appendChild(rank);
+
+    const info = document.createElement('div');
+    info.className = 'compare-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'compare-item-title';
+    title.textContent = doc.title || 'Untitled';
+    info.appendChild(title);
+
+    const idRow = document.createElement('div');
+    idRow.className = 'compare-item-id';
+    const idBtn = document.createElement('button');
+    idBtn.type = 'button';
+    idBtn.className = 'doc-id-link doc-id-link-sm';
+    idBtn.textContent = `Doc #${doc.id}`;
+    idBtn.addEventListener('click', () => openDocModal(doc.id));
+    idRow.appendChild(idBtn);
+    if (showScore) {
+        const scoreSpan = document.createElement('span');
+        scoreSpan.className = 'compare-score';
+        scoreSpan.textContent = ` · Score: ${doc.score.toFixed(4)}`;
+        if (tooltip) scoreSpan.title = tooltip;
+        idRow.appendChild(scoreSpan);
+    }
+    info.appendChild(idRow);
+
+    item.appendChild(info);
+    return item;
 }
 
 // ── Evaluate ─────────────────────────────────────
 function initEvaluate() {
     const evalBtn = document.getElementById('run-eval-btn');
     evalBtn.addEventListener('click', runEvaluation);
+
+    const abortBtn = document.getElementById('eval-abort-btn');
+    if (abortBtn) {
+        abortBtn.addEventListener('click', abortEvaluation);
+    }
 }
 
-async function runEvaluation() {
+let evalEventSource = null;
+let evalCompleted = false;
+
+function abortEvaluation() {
+    if (evalEventSource) {
+        evalEventSource.close();
+        evalEventSource = null;
+    }
+    evalCompleted = true; // suppress onerror handling
+    const progress = document.getElementById('eval-progress');
     const btn = document.getElementById('run-eval-btn');
-    const loading = document.getElementById('eval-loading');
+    if (progress) progress.style.display = 'none';
+    if (btn) btn.style.display = 'flex';
+    showError('eval-error', 'Evaluation aborted by user.');
+}
+
+function buildEvalModelRow(name, index) {
+    const row = document.createElement('div');
+    row.className = 'eval-model-row';
+    row.dataset.modelIndex = String(index);
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'eval-model-status pending';
+    statusEl.textContent = '●';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'eval-model-name';
+    nameEl.textContent = name;
+
+    const detailEl = document.createElement('div');
+    detailEl.className = 'eval-model-detail';
+    detailEl.textContent = 'queued';
+
+    row.appendChild(statusEl);
+    row.appendChild(nameEl);
+    row.appendChild(detailEl);
+    return row;
+}
+
+function runEvaluation() {
+    const btn = document.getElementById('run-eval-btn');
+    const progress = document.getElementById('eval-progress');
     const results = document.getElementById('eval-results');
+    const label = document.getElementById('eval-progress-label');
+    const pctEl = document.getElementById('eval-progress-pct');
+    const fillEl = document.getElementById('eval-progress-bar-fill');
+    const modelList = document.getElementById('eval-model-list');
 
     btn.style.display = 'none';
-    loading.style.display = 'flex';
+    progress.style.display = 'block';
     results.style.display = 'none';
+    hideError('eval-error');
 
-    try {
-        const res = await fetch(`${API_BASE}/api/evaluate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ top_k: 100 }),
-        });
-        const data = await res.json();
+    label.textContent = 'Connecting...';
+    pctEl.textContent = '0%';
+    fillEl.style.width = '0%';
+    modelList.textContent = '';
 
-        loading.style.display = 'none';
-        results.style.display = 'block';
+    if (evalEventSource) {
+        evalEventSource.close();
+    }
+    evalCompleted = false;
 
-        displayEvalResults(data);
-    } catch (err) {
-        console.error('Evaluation error:', err);
-        loading.innerHTML = '<span style="color:#f472b6">Error running evaluation. Is the API running?</span>';
+    evalEventSource = new EventSource(`${API_BASE}/api/evaluate-stream?top_k=100`);
+
+    evalEventSource.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        handleEvalEvent(msg);
+    };
+
+    evalEventSource.onerror = () => {
+        // Suppress noise after a clean finish (the browser auto-reconnects on close)
+        if (evalCompleted) return;
+        if (evalEventSource && evalEventSource.readyState === EventSource.CLOSED) {
+            return;
+        }
+        evalEventSource.close();
+        evalEventSource = null;
+        progress.style.display = 'none';
+        btn.style.display = 'flex';
+        showError('eval-error', 'Evaluation stream lost. Check that the API is running and retry.');
+    };
+}
+
+function handleEvalEvent(msg) {
+    const label = document.getElementById('eval-progress-label');
+    const pctEl = document.getElementById('eval-progress-pct');
+    const fillEl = document.getElementById('eval-progress-bar-fill');
+    const modelList = document.getElementById('eval-model-list');
+    const progress = document.getElementById('eval-progress');
+    const results = document.getElementById('eval-results');
+    const btn = document.getElementById('run-eval-btn');
+
+    switch (msg.event) {
+        case 'start':
+            label.textContent = `Evaluating ${msg.total_models} models on ${msg.total_queries} queries...`;
+            modelList.textContent = '';
+            msg.models.forEach((m, i) => {
+                modelList.appendChild(buildEvalModelRow(m.name, i));
+            });
+            break;
+
+        case 'model_start': {
+            const row = modelList.querySelector(`[data-model-index="${msg.model_index}"]`);
+            if (row) {
+                row.querySelector('.eval-model-status').className = 'eval-model-status active';
+                row.querySelector('.eval-model-detail').textContent = 'starting...';
+            }
+            label.textContent = `Running ${msg.model_name}...`;
+            break;
+        }
+
+        case 'progress': {
+            const row = modelList.querySelector(`[data-model-index="${msg.model_index}"]`);
+            if (row) {
+                row.querySelector('.eval-model-detail').textContent =
+                    `${msg.queries_done} / ${msg.total_queries} queries`;
+            }
+            pctEl.textContent = `${msg.overall_pct.toFixed(1)}%`;
+            fillEl.style.width = `${msg.overall_pct}%`;
+            const bar = document.querySelector('.eval-progress-bar');
+            if (bar) bar.setAttribute('aria-valuenow', String(Math.round(msg.overall_pct)));
+            break;
+        }
+
+        case 'model_done': {
+            const row = modelList.querySelector(`[data-model-index="${msg.model_index}"]`);
+            if (row) {
+                row.querySelector('.eval-model-status').className = 'eval-model-status done';
+                const map = msg.aggregated.MAP;
+                row.querySelector('.eval-model-detail').textContent =
+                    map !== undefined ? `MAP ${(map * 100).toFixed(1)}%` : 'done';
+            }
+            break;
+        }
+
+        case 'complete':
+            evalCompleted = true;
+            label.textContent = 'Evaluation complete';
+            pctEl.textContent = '100%';
+            fillEl.style.width = '100%';
+            const bar = document.querySelector('.eval-progress-bar');
+            if (bar) bar.setAttribute('aria-valuenow', '100');
+            if (evalEventSource) {
+                evalEventSource.close();
+                evalEventSource = null;
+            }
+            setTimeout(() => {
+                progress.style.display = 'none';
+                results.style.display = 'block';
+                displayEvalResults(msg.results);
+            }, 400);
+            break;
+
+        case 'error':
+            evalCompleted = true;
+            if (evalEventSource) {
+                evalEventSource.close();
+                evalEventSource = null;
+            }
+            progress.style.display = 'none';
+            btn.style.display = 'flex';
+            showError('eval-error', `Evaluation failed: ${msg.message}`);
+            break;
     }
 }
 
 function displayEvalResults(data) {
-    // data is an array of model evaluations
     const models = data.map(d => d.aggregated);
 
-    // MAP Cards
     const cardsEl = document.getElementById('metric-cards');
-    cardsEl.innerHTML = '';
+    cardsEl.textContent = '';
     const cardClasses = ['card-tfidf', 'card-bm25', 'card-hybrid'];
 
     models.forEach((m, i) => {
         const card = document.createElement('div');
         card.className = `metric-card ${cardClasses[i]}`;
-        card.innerHTML = `
-            <div class="metric-card-label">${m.model_name}</div>
-            <div class="metric-card-value">${(m.MAP * 100).toFixed(1)}%</div>
-            <div class="metric-card-sublabel">Mean Average Precision</div>
-        `;
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'metric-card-label';
+        labelEl.textContent = m.model_name;
+
+        const valueEl = document.createElement('div');
+        valueEl.className = 'metric-card-value';
+        valueEl.textContent = `${(m.MAP * 100).toFixed(1)}%`;
+
+        const subEl = document.createElement('div');
+        subEl.className = 'metric-card-sublabel';
+        subEl.textContent = 'Mean Average Precision';
+
+        card.appendChild(labelEl);
+        card.appendChild(valueEl);
+        card.appendChild(subEl);
         cardsEl.appendChild(card);
     });
 
@@ -439,7 +873,7 @@ function createGroupedBarChart(canvasId, title, models, metrics) {
                 },
                 y: {
                     beginAtZero: true,
-                    max: 0.5,
+                    suggestedMax: 0.5,
                     ticks: {
                         color: '#5a5a7a',
                         font: { family: 'JetBrains Mono', size: 11 },
@@ -495,7 +929,7 @@ function createRadarChart(canvasId, models) {
             scales: {
                 r: {
                     beginAtZero: true,
-                    max: 0.35,
+                    suggestedMax: 0.35,
                     ticks: {
                         color: '#5a5a7a',
                         font: { size: 10 },
@@ -513,14 +947,76 @@ function createRadarChart(canvasId, models) {
     });
 }
 
+// ── Document Modal ───────────────────────────────
+function initDocModal() {
+    const modal = document.getElementById('doc-modal');
+    const closeBtn = document.getElementById('doc-modal-close');
+    if (!modal || !closeBtn) return;
+    closeBtn.addEventListener('click', closeDocModal);
+    // Click on the dim overlay (but not the card) to close
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeDocModal();
+    });
+}
+
+async function openDocModal(docId) {
+    const modal = document.getElementById('doc-modal');
+    if (!modal) return;
+    const idEl = document.getElementById('doc-modal-id');
+    const titleEl = document.getElementById('doc-modal-title');
+    const authorEl = document.getElementById('doc-modal-author');
+    const abstractEl = document.getElementById('doc-modal-abstract');
+    const xrefsWrap = document.getElementById('doc-modal-xrefs-wrap');
+    const xrefsEl = document.getElementById('doc-modal-xrefs');
+
+    idEl.textContent = `Doc #${docId}`;
+    titleEl.textContent = 'Loading...';
+    authorEl.textContent = '';
+    abstractEl.textContent = '';
+    xrefsWrap.hidden = true;
+    modal.hidden = false;
+    document.body.classList.add('modal-open');
+
+    try {
+        const res = await fetch(`${API_BASE}/api/document/${docId}`);
+        const doc = await res.json();
+        if (!res.ok) throw new Error(doc.error || `Server returned ${res.status}`);
+
+        titleEl.textContent = doc.title || 'Untitled';
+        authorEl.textContent = doc.author ? `by ${doc.author}` : '';
+        abstractEl.textContent = doc.abstract || 'No abstract available.';
+        if (doc.cross_references && doc.cross_references.trim()) {
+            xrefsEl.textContent = doc.cross_references;
+            xrefsWrap.hidden = false;
+        }
+    } catch (err) {
+        console.error('Document fetch error:', err);
+        titleEl.textContent = 'Failed to load document';
+        abstractEl.textContent = err.message;
+    }
+}
+
+function closeDocModal() {
+    const modal = document.getElementById('doc-modal');
+    if (modal) {
+        modal.hidden = true;
+        document.body.classList.remove('modal-open');
+    }
+}
+
 // ── Statistics ───────────────────────────────────
 async function loadStats() {
     try {
         const res = await fetch(`${API_BASE}/api/stats`);
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Server returned ${res.status}`);
         displayStats(data);
     } catch (err) {
         console.error('Stats error:', err);
+        // Drop the perpetual pulse and show a banner
+        document.querySelectorAll('.stat-card').forEach(el => el.classList.remove('loading-pulse'));
+        document.querySelectorAll('.stat-value').forEach(el => { el.textContent = '—'; });
+        showError('stats-error', `Stats unavailable: ${err.message}`);
     }
 }
 
@@ -657,4 +1153,44 @@ function formatNumber(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return n.toString();
+}
+
+function showError(elementId, message) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = message;
+    el.style.display = 'block';
+}
+
+function hideError(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = '';
+    el.style.display = 'none';
+}
+
+function setButtonLoading(btn, isLoading, loadingLabel) {
+    if (!btn) return;
+    if (isLoading) {
+        if (!btn.dataset.originalHtml) {
+            btn.dataset.originalHtml = btn.innerHTML;
+        }
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+        const label = loadingLabel || 'Loading';
+        btn.textContent = '';
+        const spinner = document.createElement('span');
+        spinner.className = 'btn-spinner';
+        const text = document.createElement('span');
+        text.textContent = `${label}...`;
+        btn.appendChild(spinner);
+        btn.appendChild(text);
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+        }
+    }
 }
