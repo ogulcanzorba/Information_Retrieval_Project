@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: information-retrieval-project
+    env: python
+    buildCommand: pip install -r requirements.txt && python setup.py
+    startCommand: python backend/api.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
