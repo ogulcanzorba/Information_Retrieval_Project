@@ -3,7 +3,12 @@
    Search, Compare, Evaluate, Statistics
    ═══════════════════════════════════════════════════ */
 
-const API_BASE = '';  // Same origin (Flask serves frontend)
+// Update this URL after deploying your backend to Render/HuggingFace
+const PROD_API_URL = 'https://your-backend-name.onrender.com'; 
+
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? '' 
+    : PROD_API_URL;
 
 // ── State ────────────────────────────────────────
 let currentAlgo = 'boolean';
