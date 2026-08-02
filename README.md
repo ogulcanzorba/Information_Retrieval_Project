@@ -1,5 +1,8 @@
 # CISI Information Retrieval
 
+[![Deploy Status](https://img.shields.io/badge/Live%20Demo-Online-brightgreen?style=flat-square)](https://information-retrieval-project-vlz1.onrender.com/)
+
+
 A search engine and evaluation playground built on the CISI test collection (1,460 documents, 112 queries). Four classical retrieval algorithms run against the same corpus. You can search with any of them, compare them on the same query, tune their parameters live, or evaluate them across the full query set with the usual IR metrics.
 
 Started life as a CSE 422 course project.
